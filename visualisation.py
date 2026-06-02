@@ -84,3 +84,48 @@ def visualize_items(grid, start, items):
     plt.xticks([])
     plt.yticks([])
     plt.show()
+
+# Function to visualize the distance matrix
+def visualize_distance_matrix(distance_matrix, num_points):
+
+    matrix = np.zeros((num_points, num_points))
+
+    for (i, j), dist in distance_matrix.items():
+        matrix[i][j] = dist
+
+    plt.figure(figsize=(10,10))
+
+    plt.imshow(matrix)
+
+    plt.colorbar(label="A* Distance")
+
+    for i in range(num_points):
+        for j in range(num_points):
+
+            if i != j:
+
+                plt.text(
+                    j,
+                    i,
+                    int(matrix[i][j]),
+                    ha="center",
+                    va="center",
+                    color="white",
+                    fontsize=10,
+                    fontweight="bold"
+                )
+
+    plt.title("Distance Matrix")
+
+    plt.xlabel("To")
+    plt.ylabel("From")
+
+    labels = ["SS"] + [
+        chr(ord("A") + i)
+        for i in range(num_points - 1)
+    ]
+
+    plt.xticks(range(num_points), labels)
+    plt.yticks(range(num_points), labels)
+
+    plt.show()
