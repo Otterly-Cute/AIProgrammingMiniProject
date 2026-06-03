@@ -314,3 +314,67 @@ def print_top_hyperparameter_combinations(
         )
 
     return sorted_results[:top_n]
+
+def scalability_analysis(
+    grid,
+    start,
+    item_sets,
+    generations=100,
+    size=100,
+    mutation=0.02,
+    selection_type="tournament"
+):
+
+    item_counts = [5, 10, 15, 20]
+
+    results = []
+
+    for count in item_counts:
+
+        current_items = item_sets[count]
+
+        # -----------------------------
+        # Build Distance Matrix
+        # -----------------------------
+
+        current_distance_matrix = build_distance_matrix(
+            grid,
+            start,
+            current_items
+        )
+
+        # -----------------------------
+        # Run GA
+        # -----------------------------
+
+        start_time = time.time()
+
+        best_route, *_ = genetic_algorithm_with_history(
+            distance_matrix=current_distance_matrix,
+            items=current_items,
+            generations=generations,
+            size=size,
+            mutation=mutation,
+            selection_type=selection_type
+        )
+
+        runtime = time.time() - start_time
+
+        distance = route_distance(
+            best_route,
+            current_distance_matrix
+        )
+
+        results.append({
+            "Items": count,
+            "Distance": distance,
+            "Runtime": runtime
+        })
+
+        print(
+            f"{count} Items: "
+            f"Distance={distance:.1f}, "
+            f"Time={runtime:.2f}s"
+        )
+
+    return results

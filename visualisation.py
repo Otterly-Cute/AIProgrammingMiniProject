@@ -10,6 +10,8 @@ from IPython.display import HTML
 
 # Other scripts
 from config import *
+from path import *
+from ga import *
 
 # Function to visualize the grid with shelfs
 def visualize_store(grid):
@@ -623,7 +625,8 @@ def visualize_path(
     full_path,
     start,
     items,
-    route
+    route,
+    title="Picking Route"
 ):
     plt.close('all')
 
@@ -691,9 +694,357 @@ def visualize_path(
             fontweight="bold"
         )
 
-    ax.set_title("Optimized Picking Route")
+    ax.set_title(title)
 
     ax.set_xticks([])
     ax.set_yticks([])
 
     fig.show()
+
+def animate_heatmap_funcanimation(
+    grid,
+    path,
+    start,
+    items,
+    trail_length=10,
+    interval=50
+):
+
+    if not path:
+        print("Path is empty.")
+        return None
+
+    height = len(grid)
+    width = len(grid[0])
+
+    item_set = set(items)
+
+    # ---------- STATIC BASE ----------
+    base_heat = np.full(
+        (height, width),
+        EMPTY,
+        dtype=float
+    )
+
+    for y in range(height):
+        for x in range(width):
+
+            if grid[y][x] == 1:
+                base_heat[y][x] = WALL
+
+    # ---------- FIGURE ----------
+    fig, ax = plt.subplots(figsize=(6, 6))
+
+    heat = base_heat.copy()
+
+    img = ax.imshow(
+        heat,
+        cmap=CMAP,
+        vmin=-1,
+        vmax=3,
+        animated=True
+    )
+
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    # ---------- ITEM LABELS ----------
+    for idx, (x, y) in enumerate(items):
+
+        ax.text(
+            x,
+            y,
+            chr(65 + idx),
+            color="white",
+            ha="center",
+            va="center",
+            fontsize=8,
+            fontweight="bold"
+        )
+
+    # ---------- UPDATE FUNCTION ----------
+    def update(frame):
+
+        current = path[frame]
+
+        heat = base_heat.copy()
+
+        # ---------- TRAIL ----------
+        start_idx = max(0, frame - trail_length)
+
+        trail = path[start_idx:frame + 1]
+
+        for i, (x, y) in enumerate(trail):
+
+            intensity = (i + 1) / len(trail)
+
+            heat[y][x] = 0.2 + intensity * 1.8
+
+        # ---------- VISITED ITEMS ----------
+        visited_items = set(path[:frame + 1]) & item_set
+
+        for (x, y) in items:
+
+            if (x, y) in visited_items:
+                heat[y][x] = ITEM_PICKED
+            else:
+                heat[y][x] = ITEM
+
+        # ---------- START ----------
+        sx, sy = start
+        heat[sy][sx] = START
+
+        # ---------- AGENT ----------
+        x, y = current
+        heat[y][x] = AGENT
+
+        # ---------- UPDATE IMAGE ----------
+        img.set_array(heat)
+
+        ax.set_title(
+            f"Step {frame + 1}/{len(path)} | "
+            f"Collected {len(visited_items)}/{len(items)} Items"
+        )
+
+        return [img]
+
+    # ---------- CREATE ANIMATION ----------
+    ani = animation.FuncAnimation(
+        fig,
+        update,
+        frames=len(path),
+        interval=interval,
+        blit=False,
+        repeat=False
+    )
+
+    return ani
+
+def animate_ga_evolution(
+    grid,
+    history,
+    distance_history,
+    start,
+    items,
+    distance_matrix,
+    interval=150,
+    generation_step=5
+):
+
+    height = len(grid)
+    width = len(grid[0])
+
+    # ---------- GENERATIONS TO SHOW ----------
+    shown_generations = list(
+        range(0, len(history), generation_step)
+    )
+
+    # ---------- STATIC BASE ----------
+    base_heat = np.full(
+        (height, width),
+        EMPTY,
+        dtype=float
+    )
+
+    for y in range(height):
+        for x in range(width):
+
+            if grid[y][x] == 1:
+                base_heat[y][x] = WALL
+
+    # ---------- FIGURE ----------
+    fig = plt.figure(figsize=(12, 6))
+
+    ax_grid = fig.add_subplot(1, 2, 1)
+    ax_graph = fig.add_subplot(1, 2, 2)
+
+    heat = base_heat.copy()
+
+    img = ax_grid.imshow(
+        heat,
+        cmap=CMAP,
+        vmin=-1,
+        vmax=3,
+        animated=True
+    )
+
+    ax_grid.set_xticks([])
+    ax_grid.set_yticks([])
+
+    # ---------- GRAPH ----------
+    ax_graph.set_title("GA Convergence")
+
+    ax_graph.set_xlabel("Generation")
+    ax_graph.set_ylabel("Distance")
+
+    ax_graph.set_xlim(0, len(history))
+
+    ax_graph.set_ylim(
+        min(distance_history) * 0.95,
+        max(distance_history) * 1.05
+    )
+
+    line, = ax_graph.plot([], [])
+
+    # ---------- UPDATE ----------
+    def update(frame_idx):
+
+        gen = shown_generations[frame_idx]
+
+        route = history[gen]
+
+        heat = base_heat.copy()
+
+        # ---------- BUILD PATH ----------
+        full_path = build_full_path(
+            route,
+            grid,
+            start,
+            items
+        )
+
+        generation_progress = gen / len(history)
+
+        path_value = 0.5 + generation_progress * 2.0
+
+        # ---------- DRAW PATH ----------
+        for (x, y) in full_path:
+
+            if (x, y) != start and (x, y) not in items:
+                heat[y][x] = path_value
+
+        # ---------- ITEMS ----------
+        for item in items:
+
+            x, y = item
+
+            heat[y][x] = ITEM
+
+        # ---------- START ----------
+        sx, sy = start
+
+        heat[sy][sx] = START
+
+        # ---------- UPDATE GRID ----------
+        img.set_array(heat)
+
+        # ---------- REMOVE OLD LABELS ----------
+        for txt in ax_grid.texts:
+            txt.remove()
+
+        # ---------- ITEM LETTERS + VISIT ORDER ----------
+        for order, item_idx in enumerate(route):
+
+            x, y = items[item_idx]
+
+            label = (
+                f"{chr(65 + item_idx)}\n"
+                f"{order + 1}"
+            )
+
+            ax_grid.text(
+                x,
+                y,
+                label,
+                color="white",
+                ha="center",
+                va="center",
+                fontsize=8,
+                fontweight="bold"
+            )
+
+        # ---------- GRID TITLE ----------
+        ax_grid.set_title(
+            f"Generation {gen + 1}/{len(history)}\n"
+            f"Distance: "
+            f"{route_distance(route, distance_matrix):.0f}"
+        )
+
+        # ---------- UPDATE GRAPH ----------
+        x_data = list(range(gen + 1))
+
+        y_data = distance_history[:gen + 1]
+
+        line.set_data(
+            x_data,
+            y_data
+        )
+
+        return [img, line]
+
+    # ---------- CREATE ANIMATION ----------
+    ani = animation.FuncAnimation(
+        fig,
+        update,
+        frames=len(shown_generations),
+        interval=interval,
+        blit=False,
+        repeat=False
+    )
+
+    return ani
+
+def plot_scalability_summary(scale_results):
+
+    items = [r["Items"] for r in scale_results]
+    runtimes = [r["Runtime"] for r in scale_results]
+    distances = [r["Distance"] for r in scale_results]
+
+    fig, ax1 = plt.subplots(figsize=(8, 5))
+
+    # Runtime (left axis)
+    line1 = ax1.plot(
+        items,
+        runtimes,
+        marker="o",
+        color="tab:blue",
+        label="Runtime (s)"
+    )
+
+    ax1.set_xlabel("Number of Items")
+    ax1.set_ylabel(
+        "Runtime (s)",
+        color="tab:blue"
+    )
+
+    ax1.tick_params(
+        axis="y",
+        labelcolor="tab:blue"
+    )
+
+    # Distance (right axis)
+    ax2 = ax1.twinx()
+
+    line2 = ax2.plot(
+        items,
+        distances,
+        marker="s",
+        color="tab:red",
+        label="Distance"
+    )
+
+    ax2.set_ylabel(
+        "Route Distance",
+        color="tab:red"
+    )
+
+    ax2.tick_params(
+        axis="y",
+        labelcolor="tab:red"
+    )
+
+    # Combined legend
+    lines = line1 + line2
+    labels = [line.get_label() for line in lines]
+
+    ax1.legend(
+        lines,
+        labels,
+        loc="upper left"
+    )
+
+    plt.title("GA Scalability Analysis")
+
+    plt.grid(True)
+
+    plt.show()
