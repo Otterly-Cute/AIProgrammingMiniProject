@@ -20,7 +20,6 @@ AGENT = 3
 
 CMAP = "GnBu"
 
-
 # Grid Settings
 grid_width = 42
 grid_height = 42

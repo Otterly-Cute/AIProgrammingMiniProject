@@ -12,6 +12,14 @@ from IPython.display import HTML
 from config import *
 from astar import *
 
+
+# Default values, get's overwritten by setup_problem()
+NUM_ITEMS = 0
+SELECTION = "tournament"
+distance_matrix = {}
+items = []
+
+
 # Grid creation
 grid = [[0 for _ in range(grid_width)] for _ in range(grid_height)]
 
@@ -136,31 +144,3 @@ def build_distance_matrix(grid, start, items):
     return distance_matrix
 
 
-# Used to make sure the right amount of items are selected before experiments
-def setup_problem(active_items,selection_type):
-
-    global items
-    global NUM_ITEMS
-    global distance_matrix
-    global SELECTION
-
-    SELECTION = selection_type
-
-    items = active_items
-    NUM_ITEMS = len(items)
-
-    points = [start] + items
-
-    distance_matrix = {}
-
-    for i in range(len(points)):
-        for j in range(len(points)):
-            if i != j:
-
-                _, distance = astar(
-                    grid,
-                    points[i],
-                    points[j]
-                )
-
-                distance_matrix[(i, j)] = distance
